@@ -1,0 +1,25 @@
+From 8d735671853004ac5ff99066cf32c024184a1b83 Mon Sep 17 00:00:00 2001
+From: caleb crome <caleb@crome.org>
+Date: Tue, 6 Dec 2016 06:51:17 -0800
+Subject: [PATCH 3/3] MMC: clock speed to 25MHz
+
+Set MMC clock speed to 25MHz to allow puck to boot correctly.  This
+can be deleted once a new board rev is made
+---
+ arch/arm/boot/dts/imx6qdl-hummingboard.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/imx6qdl-hummingboard.dtsi b/arch/arm/boot/dts/imx6qdl-hummingboard.dtsi
+index 37c07c0..1b623b2 100644
+--- a/arch/arm/boot/dts/imx6qdl-hummingboard.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-hummingboard.dtsi
+@@ -300,5 +300,6 @@
+ 	>;
+ 	vmmc-supply = <&reg_3p3v>;
+ 	cd-gpios = <&gpio1 4 GPIO_ACTIVE_LOW>;
++	max-frequency=<25000000>;
+ 	status = "okay";
+ };
+-- 
+2.7.4
+

@@ -1,0 +1,178 @@
+From d9c0cd120d3c8905bbe415051129eb99d8d18698 Mon Sep 17 00:00:00 2001
+From: caleb crome <caleb@crome.org>
+Date: Thu, 21 Dec 2017 09:09:39 -0800
+Subject: [PATCH 2/3] DTSI for wandboard loopback test.
+
+---
+ arch/arm/boot/dts/imx6qdl-wandboard.dtsi | 125 +++++++++++++++++++++++--------
+ 1 file changed, 95 insertions(+), 30 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6qdl-wandboard.dtsi b/arch/arm/boot/dts/imx6qdl-wandboard.dtsi
+index ed96d7b..6ff83ef 100644
+--- a/arch/arm/boot/dts/imx6qdl-wandboard.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-wandboard.dtsi
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/sound/fsl-imx-audmux.h>
+ 
+ / {
+ 	regulators {
+@@ -36,37 +37,94 @@
+ 		};
+ 	};
+ 
+-	sound {
+-		compatible = "fsl,imx6-wandboard-sgtl5000",
+-			     "fsl,imx-audio-sgtl5000";
+-		model = "imx6-wandboard-sgtl5000";
+-		ssi-controller = <&ssi1>;
+-		audio-codec = <&codec>;
+-		audio-routing =
+-			"MIC_IN", "Mic Jack",
+-			"Mic Jack", "Mic Bias",
+-			"Headphone Jack", "HP_OUT";
+-		mux-int-port = <1>;
+-		mux-ext-port = <3>;
+-	};
+-
+-	sound-spdif {
+-		compatible = "fsl,imx-audio-spdif";
+-		model = "imx-spdif";
+-		spdif-controller = <&spdif>;
+-		spdif-out;
+-	};
+ };
+ 
++#define SSI_TEST_MASTER
++/*
++ * port 4 is datasheet port 5 (aud5)
++ * port 6 is datasheet port 7 (ssi3)
++ */
++#define AUDMUX_EXT_PORT 4
++#define AUDMUX_INT_PORT 6
++#define AUDMUX_INT_PORT_NAME port5
+ &audmux {
+-	pinctrl-names = "default";
+-	pinctrl-0 = <&pinctrl_audmux>;
+-	status = "okay";
++        status = "okay";
++	ssi3 {
++         fsl,audmux-port = <AUDMUX_INT_PORT>;
++         fsl,port-config = <
++#ifdef SSI_TEST_MASTER
++	IMX_AUDMUX_V2_PTCR_SYN
++#else
++	(IMX_AUDMUX_V2_PTCR_TFSDIR |
++	IMX_AUDMUX_V2_PTCR_TFSEL(AUDMUX_EXT_PORT) |
++	IMX_AUDMUX_V2_PTCR_TCLKDIR |
++	IMX_AUDMUX_V2_PTCR_TCSEL(AUDMUX_EXT_PORT) |
++	IMX_AUDMUX_V2_PTCR_SYN
++	)
++#endif
++             IMX_AUDMUX_V2_PDCR_RXDSEL(AUDMUX_EXT_PORT)
++	>;
++     };
++
++     AUDMUX_INT_PORT_NAME {
++         fsl,audmux-port = <AUDMUX_EXT_PORT>;
++         fsl,port-config = <
++#ifdef SSI_TEST_MASTER
++             (IMX_AUDMUX_V2_PTCR_TFSDIR |
++             IMX_AUDMUX_V2_PTCR_TFSEL(AUDMUX_INT_PORT) |
++             IMX_AUDMUX_V2_PTCR_TCLKDIR |
++             IMX_AUDMUX_V2_PTCR_TCSEL(AUDMUX_INT_PORT) |
++	     IMX_AUDMUX_V2_PTCR_SYN
++	     )
++#else
++	IMX_AUDMUX_V2_PTCR_SYN
++#endif
++	IMX_AUDMUX_V2_PDCR_RXDSEL(AUDMUX_INT_PORT)
++         >;
++     };
+ };
+ 
+-&hdmi {
+-	ddc-i2c-bus = <&i2c1>;
+-	status = "okay";
++
++//&ssi1 {
++//	status = "okay";
++//};
++
++&ssi3 {
++     pinctrl-names = "default";
++     pinctrl-0 = <&pinctrl_audmux>;
++     status = "okay";
++};
++
++/ {
++     codec_test: codec_test {
++         compatible = "linux,snd-soc-dummy";
++         #sound-dai-cells = <0>;
++     };
++
++
++     sound@2 {
++         compatible = "simple-audio-card";
++         simple-audio-card,name = "loopback-ssi-test";
++         simple-audio-card,format="dsp_a";
++
++#ifdef SSI_TEST_MASTER
++         simple-audio-card,frame-master = <&sound2_ssi>;
++         simple-audio-card,bitclock-master = <&sound2_ssi>;
++#else
++         simple-audio-card,frame-master = <&codec_test>;
++         simple-audio-card,bitclock-master = <&codec_test>;
++#endif
++             sound2_ssi: simple-audio-card,cpu {
++                 sound-dai = <&ssi3>;
++                 system-clock-frequency = <1536000>;
++                 dai-tdm-slot-num = <8>;
++                 dai-tdm-slot-width = <16>;
++             };
++             sound2codec: simple-audio-card,codec {
++                 sound-dai = <&codec_test>;
++             };
++     };
++
+ };
+ 
+ &i2c1 {
+@@ -99,10 +157,21 @@
+ 
+ 		pinctrl_audmux: audmuxgrp {
+ 			fsl,pins = <
++				// 0x130b0 = PAD_CTL_SRE_SLOW,  PAD_CTL_DSE_40ohm, PAD_CTL_SPEED_MED, PAD_CTL_PKE, PAD_CTL_PUE, PAD_CTL_PUS_22K_UP PAD_CTL_HYS
++				// 0x110b0 = PAD_CTL_SRE_SLOW,  PAD_CTL_DSE_40ohm, PAD_CTL_SPEED_MED, PAD_CTL_PKE,              PAD_CTL_PUS_22K_UP PAD_CTL_HYS
+ 				MX6QDL_PAD_CSI0_DAT7__AUD3_RXD		0x130b0
+ 				MX6QDL_PAD_CSI0_DAT4__AUD3_TXC		0x130b0
+ 				MX6QDL_PAD_CSI0_DAT5__AUD3_TXD		0x110b0
+ 				MX6QDL_PAD_CSI0_DAT6__AUD3_TXFS		0x130b0
++				MX6QDL_PAD_DISP0_DAT23__AUD4_RXD        0x130b0 // wandboard  jp2.10
++				MX6QDL_PAD_DISP0_DAT20__AUD4_TXC	0x130b0 // wandboard  jp2.4
++				MX6QDL_PAD_DISP0_DAT21__AUD4_TXD	0x110b0 // wandboard  jp2.6
++				MX6QDL_PAD_DISP0_DAT22__AUD4_TXFS	0x130b0 // wandboard  jp2.8
++				MX6QDL_PAD_DISP0_DAT19__AUD5_RXD        0x130b0 // wandboard  jp1.20
++				MX6QDL_PAD_DISP0_DAT16__AUD5_TXC	0x130b0 // wandboard, jp1.14
++				MX6QDL_PAD_DISP0_DAT17__AUD5_TXD	0x110b0 // wandboard  jp1.16
++				MX6QDL_PAD_DISP0_DAT18__AUD5_TXFS	0x130b0 // wandboard  jp1.18
++				MX6QDL_PAD_GPIO_19__CCM_CLKO1           0x130b0 // wandboard  jp4.18
+ 			>;
+ 		};
+ 
+@@ -222,10 +291,6 @@
+ 	status = "okay";
+ };
+ 
+-&ssi1 {
+-	status = "okay";
+-};
+-
+ &uart1 {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&pinctrl_uart1>;
+-- 
+2.7.4
+
